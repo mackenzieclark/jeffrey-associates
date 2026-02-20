@@ -29,13 +29,11 @@ function fixupSiteStyles() {
         `);
     } else if (domainIs(hostname, 'tumblr.com')) {
         addStyleSheet(`
-            .assigned-label-transphobic { outline: 2px solid var(--ShinigamiEyesTransphobic) !important; }
-            .assigned-label-t-friendly { outline: 1px solid var(--ShinigamiEyesTFriendly) !important; }
+            .assigned-label-associate { outline: 2px solid var(--JeffreyAssociatesColor) !important; }
         `);
     } else if (hostname == 'rationalwiki.org' || domainIs(hostname, 'wikipedia.org')) {
         addStyleSheet(`
-            .assigned-label-transphobic { outline: 1px solid var(--ShinigamiEyesTransphobic) !important; }
-            .assigned-label-t-friendly { outline: 1px solid var(--ShinigamiEyesTFriendly) !important; }
+            .assigned-label-associate { outline: 1px solid var(--JeffreyAssociatesColor) !important; }
             .vector-page-toolbar .has-assigned-label { outline-width: 2px !important; }
         `);
     } else if (hostname == 'twitter.com') {
@@ -259,11 +257,11 @@ function solvePendingLabels() {
     var uniqueIdentifiers = Array.from(new Set(labelsToSolve.map(x => x.identifier)));
     var tosolve = labelsToSolve;
     labelsToSolve = [];
-    browser.runtime.sendMessage<ShinigamiEyesCommand, LabelMap>({ ids: uniqueIdentifiers, myself: <string>myself }, (response: LabelMap) => {
+    browser.runtime.sendMessage<JeffreyAssociatesCommand, LabelMap>({ ids: uniqueIdentifiers, myself: <string>myself }, (response: LabelMap) => {
         const theme = response[':theme'];
         if (theme != currentlyAppliedTheme) {
-            if (currentlyAppliedTheme) document.body.classList.remove('shinigami-eyes-theme-' + currentlyAppliedTheme);
-            if (theme) document.body.classList.add('shinigami-eyes-theme-' + theme);
+            if (currentlyAppliedTheme) document.body.classList.remove('jeffrey-associates-theme-' + currentlyAppliedTheme);
+            if (theme) document.body.classList.add('jeffrey-associates-theme-' + theme);
             currentlyAppliedTheme = theme;
         }
         for (const item of tosolve) {
@@ -539,12 +537,6 @@ function tryUnwrapNestedURL(url: URL): URL {
     }
     return null;
 }
-
-interface TwitterMapping { 
-    userName: string;
-    numericId: string;
-}
-
 
 const MASTODON_FALSE_POSITIVES = ['tiktok.com', 'youtube.com', 'medium.com', 'foundation.app', 'pronouns.page'];
 
@@ -845,38 +837,23 @@ function displayConfirmation(identifier: string, label: LabelKind, badIdentifier
         previousConfirmationMessage.remove();
         previousConfirmationMessage = null;
     }
-    if (!label) return;
-    if (colorLinks && label != 'bad-identifier') return;
+    if (label != 'bad-identifier') return;
 
     const confirmation = document.createElement('div');
-    const background =
-        label == 't-friendly' ? '#eaffcf' :
-            label == 'transphobic' ? '#f5d7d7' :
-                '#eeeeee';
-    confirmation.style.cssText = `transition: opacity 7s ease-in-out !important; opacity: 1; position: fixed; padding: 30px 15px; z-index: 99999999; white-space: pre-wrap; top: 200px; left: 30%; right: 30%; background: ${background}; color: black; font-weight: bold; font-family: Arial; box-shadow: 0px 5px 10px #ddd; border: 1px solid #ccc; font-size: 11pt;`;
+    confirmation.style.cssText = `transition: opacity 7s ease-in-out !important; opacity: 1; position: fixed; padding: 30px 15px; z-index: 99999999; white-space: pre-wrap; top: 200px; left: 30%; right: 30%; background: #eeeeee; color: black; font-weight: bold; font-family: Arial; box-shadow: 0px 5px 10px #ddd; border: 1px solid #ccc; font-size: 11pt;`;
     let text: string;
 
-    if (label == 'bad-identifier') {
-        const displayReason = getBadIdentifierReason(identifier, url, target);
-        if (displayReason) text = displayReason;
-        else if (badIdentifierReason == 'SN') text = 'This social network is not supported: ' + identifier + '.';
-        else if (badIdentifierReason == 'AR') text = 'This is an archival link, it cannot be labeled: ' + identifier;
-        else text = `This item could not be labeled. Possible reasons:
+    const displayReason = getBadIdentifierReason(identifier, url, target);
+    if (displayReason) text = displayReason;
+    else if (badIdentifierReason == 'SN') text = 'This social network is not supported: ' + identifier + '.';
+    else if (badIdentifierReason == 'AR') text = 'This is an archival link, it cannot be labeled: ' + identifier;
+    else text = `This item could not be identified. Possible reasons:
  • It doesn't represent a specific user or page
- • It's not a kind of object supported by Shinigami Eyes
+ • It's not a kind of object supported by Jeffrey Associates
 
  ${identifier || url}
 `;
-    } else {
-        const suffix = (isMastodon && !colorLinks) ? 'on supported Mastodon instances.' :
-            (domainIs(hostname, 'tumblr.com') && !colorLinks) ? 'on the Tumblr dashboard.' :
-            'on search engines and social networks.';
-        text = identifier + (
-            label == 't-friendly' ? ' will be displayed as trans-friendly ' + suffix :
-                label == 'transphobic' ? ' will be displayed as anti-trans ' + suffix:
-                    ' has been cleared.'
-        );
-    }
+
     confirmation.textContent = text;
     document.body.appendChild(confirmation);
     previousConfirmationMessage = confirmation;
@@ -893,41 +870,7 @@ function displayConfirmation(identifier: string, label: LabelKind, badIdentifier
 
 
 
-async function findTwitterNumericIdsFirefox(request: ShinigamiEyesFindTwitterNumericIdsRequest): Promise<ShinigamiEyesFindTwitterNumericIdsResponse> {
-    // Firefox only supports wrappedJSObject
-    return shinigamiEyesFindTwitterNumericIds(request, true);
-}
-async function findTwitterNumericIdsChrome(request: ShinigamiEyesFindTwitterNumericIdsRequest): Promise<ShinigamiEyesFindTwitterNumericIdsResponse> { 
-    // Chrome only supports world=MAIN
-    request.requestId = crypto.randomUUID();
-    let resolve: (result: ShinigamiEyesFindTwitterNumericIdsResponse) => void = null;
-    const handler = (event: MessageEvent) => {
-        if (event.origin !== 'https://x.com' && event.origin !== 'https://twitter.com') return;
-
-        if (event.data && event.data.shinigamiEyesFindTwitterNumericIdsResponse) {
-            const response = <ShinigamiEyesFindTwitterNumericIdsResponse>event.data.shinigamiEyesFindTwitterNumericIdsResponse;
-            if (response.requestId == request.requestId) {
-                resolve(response);
-            }
-        }
-  
-    };
-    try {
-        window.addEventListener('message', handler);
-        const promise = new Promise<ShinigamiEyesFindTwitterNumericIdsResponse>(r => {
-            resolve = r;
-        });
-        window.postMessage({
-            shinigamiEyesFindTwitterNumericIdsRequest: request
-        });
-        var timeout = new Promise<ShinigamiEyesFindTwitterNumericIdsResponse>(resolve => setTimeout(() => resolve({ mappings: null }), 200));
-        return await Promise.race([promise, timeout]);
-    } finally { 
-        window.removeEventListener('message', handler);
-    }
-}
-
-browser.runtime.onMessage.addListener<ShinigamiEyesMessage, ShinigamiEyesSubmission>((message, sender, sendResponse) => {
+browser.runtime.onMessage.addListener<JeffreyAssociatesMessage, void>((message, sender, sendResponse) => {
 
     if (message.updateAllLabels || message.confirmSetLabel) {
         displayConfirmation(message.confirmSetIdentifier, message.confirmSetLabel, message.badIdentifierReason, message.confirmSetUrl, null);
@@ -935,66 +878,5 @@ browser.runtime.onMessage.addListener<ShinigamiEyesMessage, ShinigamiEyesSubmiss
         return undefined;
     }
 
-    message.contextPage = window.location.href;
-    const originalTarget = lastRightClickedElement;
-    let target = originalTarget; // message.elementId ? browser.menus.getTargetElement(message.elementId) : null;
-
-    while (target) {
-        if (target instanceof HTMLAnchorElement) break;
-        target = target.parentElement;
-    }
-
-    if (target && (<HTMLAnchorElement>target).href != message.url) target = null;
-
-    var identifier = target ? getIdentifier(<HTMLAnchorElement>target, originalTarget) : getIdentifier(message.url);
-    if (!identifier) {
-        displayConfirmation(null, 'bad-identifier', null, message.url, target);
-        return undefined;
-    }
-
-
-    (async () => {
-            
-        message.identifier = identifier;
-        if (identifier.startsWith('facebook.com/'))
-            message.secondaryIdentifier = getIdentifier(message.url);
-        
-
-        var snippet = getSnippet(target);
-        message.linkId = ++lastGeneratedLinkId;
-
-        if (target)
-            target.setAttribute('shinigami-eyes-link-id', '' + lastGeneratedLinkId);
-
-
-        if (hostname == 'twitter.com') {
-            try {
-                const twitterUserName = captureRegex(identifier, /^twitter\.com\/(.*)$/)?.toLowerCase();
-                if (twitterUserName) {
-                    const request: ShinigamiEyesFindTwitterNumericIdsRequest = {
-                        linkId: message.linkId,
-                        wantIdForScreenName: twitterUserName
-                    };
-                    const response = await findTwitterNumericIdsFirefox(request);
-                    const twitterMapping = response.mappings?.filter(x => twitterUserName == x.userName?.toLowerCase())[0];
-                    if (twitterMapping)
-                        message.secondaryIdentifier = 'twitter.com/i/user/' + twitterMapping.numericId;      
-                }
-            } catch (error) {
-                console.warn(error);
-            }
-        }
-
-        message.snippet = snippet ? snippet.outerHTML : null;
-        var debugClass = 'shinigami-eyes-debug-snippet-highlight';
-
-        if (snippet && message.debug) {
-            snippet.classList.add(debugClass);
-            if (message.debug <= 1)
-                setTimeout(() => snippet.classList.remove(debugClass), 1500)
-        }
-        sendResponse(message);
-    })();
-
-    return true;
+    return undefined;
 })

@@ -2,20 +2,18 @@ var browser: Browser = browser || chrome;
 
 browser.storage.local.get(['theme'], obj => {
 
-    var theme: string = obj.theme || 'green-red';
+    var theme: string = obj.theme || 'default';
     var themeSettingsContainer = document.getElementById('theme-settings');
 
     [
-        'green-red',
-        'purple-yellow',
-        'cyan-orange',
+        'default',
+        'amber-max',
     ].map(x => {
         themeSettingsContainer.insertAdjacentHTML('beforeend', `
-        <label class="shinigami-eyes-theme shinigami-eyes-theme-${x}">
+        <label class="jeffrey-associates-theme jeffrey-associates-theme-${x}">
         <input type="radio" name="selected-theme" ${x == theme ? 'checked' : ''} data-theme="${x}">
-        <span class="assigned-label-t-friendly">T-Friendly</span>,
-        <span class="assigned-label-transphobic">Anti-trans</span>,
-        <span class="assigned-label-unknown" title="Using Facebook as an example for unknown links.">Unknown (fb)</span>
+        <span class="assigned-label-associate">Epstein Associate</span>,
+        <span class="assigned-label-unknown" title="No label applied">Unknown</span>
         </label>
         `);
     });
@@ -24,13 +22,13 @@ browser.storage.local.get(['theme'], obj => {
 
 document.getElementById('save-button').addEventListener('click', async () => {
     var theme = (<HTMLInputElement>
-        [...document.querySelectorAll('.shinigami-eyes-theme input')]
+        [...document.querySelectorAll('.jeffrey-associates-theme input')]
             .filter(x => (<HTMLInputElement>x).checked)[0]
     ).dataset.theme;
-    browser.runtime.sendMessage(<ShinigamiEyesCommand>{ closeCallingTab: true, setTheme: theme }, () => { });
+    browser.runtime.sendMessage(<JeffreyAssociatesCommand>{ closeCallingTab: true, setTheme: theme }, () => { });
 });
 
 
 document.getElementById('cancel-button').addEventListener('click', async () => {
-    browser.runtime.sendMessage(<ShinigamiEyesCommand>{ closeCallingTab: true }, () => { });
+    browser.runtime.sendMessage(<JeffreyAssociatesCommand>{ closeCallingTab: true }, () => { });
 });
